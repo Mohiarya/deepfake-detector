@@ -1,0 +1,22 @@
+# Production/deployment dependencies only — a trimmed subset of
+# requirements.txt (which stays the full local-dev environment, unchanged,
+# including test/evaluation-only packages like pytest/kaggle/scikit-learn
+# that the deployed API never imports).
+#
+# One deliberate substitution: opencv-python-headless instead of
+# opencv-python. Same cv2 API (face detection is unaffected) — the
+# GUI-capable build is known to fail on headless Linux servers (missing
+# libGL.so.1 etc.), the headless build has no such dependency.
+#
+# All versions pinned to match requirements.txt exactly, so nothing about
+# actual behavior changes, only what's installed.
+fastapi==0.141.1
+uvicorn==0.52.4
+uvloop==0.22.1
+httptools==0.8.0
+watchfiles==1.2.0
+websockets==17.1
+python-multipart==0.0.32
+opencv-python-headless==4.14.0.94
+numpy==2.5.2
+tensorflow==2.21.0

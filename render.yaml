@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: deepfake-detector-api
+    runtime: python
+    plan: free
+    rootDir: server
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.3
+      # Set in Render's dashboard once the frontend has a real URL —
+      # not stored here since this file is committed to git.
+      - key: CLIENT_ORIGIN
+        sync: false

@@ -5,6 +5,7 @@ job is: receive an uploaded image over HTTP, call the existing pipeline,
 return the results as JSON.
 """
 
+import os
 from contextlib import asynccontextmanager
 
 import numpy as np
@@ -27,9 +28,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Deepfake Detector API", lifespan=lifespan)
 
+_allowed_origins = ["http://localhost:5190", "http://localhost:5173"]
+if os.environ.get("CLIENT_ORIGIN"):
+    _allowed_origins.append(os.environ["CLIENT_ORIGIN"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5190", "http://localhost:5173"],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
