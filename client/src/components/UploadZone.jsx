@@ -4,12 +4,15 @@ export default function UploadZone({ onFileSelected }) {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Deliberately no client-side type filtering here: the backend is the
+  // single source of truth for "is this a valid image" (see main.py) and
+  // returns a clear error message when it isn't. Filtering here too would
+  // mean invalid files get silently dropped with zero feedback instead of
+  // reaching the real error path — worse than showing the actual error.
   const handleFiles = useCallback(
     (fileList) => {
       const file = fileList?.[0];
-      if (file && file.type.startsWith("image/")) {
-        onFileSelected(file);
-      }
+      if (file) onFileSelected(file);
     },
     [onFileSelected]
   );
