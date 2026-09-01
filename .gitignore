@@ -9,3 +9,4 @@ dist/
 .claude/
 .vercel
 server/data/
+server/tests/fixtures/investigation/

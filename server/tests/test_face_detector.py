@@ -33,26 +33,20 @@ def test_detects_no_faces_in_image_with_no_face():
     assert len(boxes) == 0
 
 
-def test_detects_at_least_two_faces_in_multi_face_image():
+def test_detects_exactly_two_faces_in_multi_face_image():
     """
-    Documents another real Haar Cascade characteristic found while testing:
-    on this fixture it actually returns 3 boxes, not 2 — the smaller
-    (resized) face gets detected twice by two adjacent, non-overlapping
-    windows, likely because resizing slightly degrades the features it's
-    matching against. Raising minNeighbors from 5 does suppress the extra
-    box, but only at minNeighbors=10, which is a much stricter global
-    threshold that would risk missing real, harder-to-detect faces
-    elsewhere — not a trade worth making to fix one synthetic case.
-
-    So: assert it finds at least the two real faces (doesn't miss one),
-    without pretending it never produces a spurious extra detection.
-    Deduplicating near-duplicate detections (via proximity-based merging,
-    since these don't overlap enough for standard IoU-based NMS to catch)
-    is a real, known follow-up — tracked here, not silently ignored.
+    This used to be a known-limitation test: the frontal-face cascade alone
+    returned 3 boxes here, not 2 — the smaller (resized) face got detected
+    twice by two adjacent, non-overlapping windows. Eye-verification (added
+    after a real production false-positive report — see the module
+    docstring) resolves this as a side effect: the spurious duplicate box
+    has no detectable eyes and gets filtered out, while the genuine small
+    face keeps its 2 eyes and survives. Same fix, unrelated bug, no longer
+    a documented limitation — an actual improvement, not just tracking.
     """
     image = load_fixture("multi_face.jpg")
     boxes = detect_faces(image)
-    assert len(boxes) >= 2
+    assert len(boxes) == 2
 
 
 def test_cropped_face_has_expected_dimensions():
@@ -67,6 +61,31 @@ def test_cropped_face_has_expected_dimensions():
     assert crop.shape[1] == w
     # The crop should be a real, non-empty image, not a degenerate 0-size one.
     assert crop.size > 0
+
+
+def test_real_world_patterned_clothing_does_not_produce_false_positive_faces():
+    """
+    Regression test for a real production bug: a genuine photo (one real
+    face, patterned fabric clothing) was reported as "5 faces detected" —
+    4 of them were false positives on the clothing's floral print, which
+    the frontal-face cascade alone matched at a certain scale. Eye-
+    verification (see face_detector.py) fixed this.
+
+    The source photo is personal/identifiable, so it's kept local and
+    gitignored rather than committed to this public repo — this test
+    skips gracefully (not fails) if the file isn't present, e.g. in CI or
+    on another machine.
+    """
+    fixture_path = FIXTURES_DIR / "investigation" / "mohi_photo.jpg"
+    if not fixture_path.exists():
+        pytest.skip("Local-only fixture not present (kept out of the public repo)")
+
+    image = cv2.imread(str(fixture_path))
+    boxes = detect_faces(image)
+    assert len(boxes) == 1, (
+        f"Expected exactly 1 real face, got {len(boxes)} — false positives "
+        "on the clothing pattern may have regressed."
+    )
 
 
 def test_known_limitation_rotated_face_is_often_missed():
