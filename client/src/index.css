@@ -529,3 +529,39 @@ body {
 .how-content strong {
   color: var(--text-h);
 }
+
+/* Error view */
+.error-view {
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  background: var(--fake-dim);
+  border-radius: 6px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.error-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fake);
+  margin: 0 0 8px;
+}
+
+.error-message {
+  font-size: 13.5px;
+  color: var(--text);
+  margin: 0 0 20px;
+}
+
+.error-view .reset-link {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  padding: 8px 16px;
+  color: var(--text-h);
+}
+.error-view .reset-link:hover {
+  border-color: var(--fake);
+  color: var(--fake);
+  text-decoration: none;
+}

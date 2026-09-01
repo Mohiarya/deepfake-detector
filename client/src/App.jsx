@@ -1,54 +1,80 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import UploadZone from "./components/UploadZone";
 import AnalysisPipeline from "./components/AnalysisPipeline";
 import ResultView from "./components/ResultView";
+import { API_BASE } from "./api";
 import { PIPELINE_STEPS } from "./pipelineSteps";
 
-// TEMPORARY, structure-only placeholder — shaped EXACTLY like the real
-// POST /api/analyze response (see server/main.py) so swapping this out
-// for a real fetch call is a drop-in change, not a rewrite. Removed in
-// the next step, once we wire the actual API.
-const MOCK_RESULT = {
-  facesDetected: 1,
-  results: [{ box: { x: 177, y: 66, w: 94, h: 94 }, realProbability: 0.7021, label: "likely real" }],
-};
-
-// Also temporary: the real backend does detection + inference as one
-// atomic request, so this timed step-by-step animation is a UX device,
-// not a literal readout of backend progress. Whether to keep it exactly
-// like this (fixed-duration animation) or tie it to real request timing
-// is a decision for when we wire the API — flagging that now rather than
-// pretending this is final.
+// The real backend does detection + inference as one atomic request — there's
+// no live progress signal from the server. So the pipeline steps advance on
+// a timer purely for feedback, but STOP at the last processing step
+// ("MesoNet inference") and wait there (pulsing) until the real response
+// actually comes back, rather than a fixed animation that could finish
+// before or long after the real work does.
 const STEP_DELAY_MS = 550;
+const LAST_AUTO_ADVANCE_STEP = PIPELINE_STEPS.length - 2; // hold here until response
+const RESULT_STEP = PIPELINE_STEPS.length - 1;
 
 function App() {
-  const [stage, setStage] = useState("idle"); // idle | analyzing | result
+  const [stage, setStage] = useState("idle"); // idle | analyzing | result | error
   const [previewUrl, setPreviewUrl] = useState(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const timersRef = useRef([]);
 
-  function handleFileSelected(file) {
+  function clearPendingTimers() {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+  }
+
+  async function handleFileSelected(file) {
+    clearPendingTimers();
     setPreviewUrl(URL.createObjectURL(file));
+    setResult(null);
+    setErrorMessage("");
     setStage("analyzing");
     setStepIndex(0);
 
-    PIPELINE_STEPS.forEach((_, i) => {
-      setTimeout(() => {
-        setStepIndex(i);
-        if (i === PIPELINE_STEPS.length - 1) {
-          setTimeout(() => {
-            setResult(MOCK_RESULT);
-            setStage("result");
-          }, STEP_DELAY_MS);
-        }
-      }, i * STEP_DELAY_MS);
-    });
+    // Advance through the visual steps up to (and holding at) the last
+    // processing step — never past it until the real response is in hand.
+    for (let i = 1; i <= LAST_AUTO_ADVANCE_STEP; i++) {
+      const timer = setTimeout(() => setStepIndex(i), i * STEP_DELAY_MS);
+      timersRef.current.push(timer);
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: formData });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.detail || `Request failed (${res.status})`);
+      }
+
+      clearPendingTimers();
+      setStepIndex(RESULT_STEP);
+      setResult(data);
+      setStage("result");
+    } catch (err) {
+      clearPendingTimers();
+      setErrorMessage(
+        err.message === "Failed to fetch"
+          ? "Couldn't reach the server — is the backend running?"
+          : err.message
+      );
+      setStage("error");
+    }
   }
 
   function reset() {
+    clearPendingTimers();
     setStage("idle");
     setPreviewUrl(null);
     setResult(null);
+    setErrorMessage("");
   }
 
   return (
@@ -82,6 +108,20 @@ function App() {
 
         {stage === "result" && result && (
           <ResultView previewUrl={previewUrl} result={result} onReset={reset} />
+        )}
+
+        {stage === "error" && (
+          <div className="error-view corner-frame">
+            <span className="corner corner-tl" />
+            <span className="corner corner-tr" />
+            <span className="corner corner-bl" />
+            <span className="corner corner-br" />
+            <p className="error-title">Analysis failed</p>
+            <p className="error-message">{errorMessage}</p>
+            <button className="reset-link" onClick={reset}>
+              Try again
+            </button>
+          </div>
         )}
       </main>
     </div>
