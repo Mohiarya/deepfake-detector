@@ -1,12 +1,20 @@
 import { useState } from "react";
+import AnalysisDetails from "./AnalysisDetails";
+import TechnicalDetailsPanel from "./TechnicalDetailsPanel";
 
-function labelClass(label) {
+function toneFor(label) {
   if (label === "likely real") return "real";
   if (label === "likely manipulated") return "fake";
   return "uncertain";
 }
 
-function FaceBox({ box, naturalWidth, naturalHeight, tone }) {
+function verdictText(label) {
+  if (label === "likely real") return "Likely Real";
+  if (label === "likely manipulated") return "Likely Manipulated";
+  return "Uncertain";
+}
+
+function FaceBox({ box, naturalWidth, naturalHeight, tone, index, isSelected, onSelect }) {
   if (!naturalWidth || !naturalHeight) return null;
   const style = {
     left: `${(box.x / naturalWidth) * 100}%`,
@@ -14,121 +22,164 @@ function FaceBox({ box, naturalWidth, naturalHeight, tone }) {
     width: `${(box.w / naturalWidth) * 100}%`,
     height: `${(box.h / naturalHeight) * 100}%`,
   };
-  return <div className={`face-box face-box-${tone}`} style={style} />;
-}
-
-function ProbabilityMeter({ score, tone }) {
   return (
-    <div className="meter">
-      <div className="meter-track">
-        <div className={`meter-fill meter-fill-${tone}`} style={{ width: `${score * 100}%` }} />
-        <div className="meter-midline" />
-      </div>
-      <div className="meter-scale">
-        <span>manipulated</span>
-        <span>real</span>
-      </div>
+    <div
+      className={`face-box face-box-${tone} ${isSelected ? "face-box-selected" : ""}`}
+      style={style}
+      onClick={() => onSelect(index)}
+      role="button"
+      tabIndex={0}
+      aria-label={`Face ${index + 1}`}
+    >
+      <span className="face-box-tag mono">FACE {String(index + 1).padStart(2, "0")}</span>
     </div>
   );
 }
 
 export default function ResultView({ previewUrl, result, onReset }) {
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
-  const [howOpen, setHowOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const faces = result.results;
+  const selected = faces[selectedIndex] || faces[0];
+  const tone = toneFor(selected.label);
+  const manipulatedProbability = 1 - selected.realProbability;
 
   return (
-    <div className="result-view">
-      <div className="result-image-frame corner-frame">
-        <span className="corner corner-tl" />
-        <span className="corner corner-tr" />
-        <span className="corner corner-bl" />
-        <span className="corner corner-br" />
-
-        <div className="result-image-wrap">
-          <img
-            src={previewUrl}
-            alt="Analyzed"
-            onLoad={(e) =>
-              setNaturalSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })
-            }
-          />
-          {faces.map((face, i) => (
-            <FaceBox
-              key={i}
-              box={face.box}
-              naturalWidth={naturalSize.w}
-              naturalHeight={naturalSize.h}
-              tone={labelClass(face.label)}
-            />
-          ))}
-        </div>
+    <div className="fade-in">
+      <div className="result-toolbar">
+        <h2>Analysis Result</h2>
+        <button className="btn btn-ghost btn-sm" onClick={onReset}>
+          Analyze another
+        </button>
       </div>
 
-      <div className="result-panel">
-        <div className="result-panel-header">
-          <span className="faces-count">
-            {result.facesDetected} face{result.facesDetected === 1 ? "" : "s"} detected
-          </span>
-          <button className="reset-link" onClick={onReset}>
-            Analyze another
-          </button>
+      <div className="result-layout">
+        {/* LEFT: image viewer with clickable bounding boxes */}
+        <div className="image-viewer">
+          <div className="image-viewer-wrap">
+            <img
+              src={previewUrl}
+              alt="Analyzed"
+              onLoad={(e) =>
+                setNaturalSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })
+              }
+            />
+            {faces.map((face, i) => (
+              <FaceBox
+                key={i}
+                box={face.box}
+                naturalWidth={naturalSize.w}
+                naturalHeight={naturalSize.h}
+                tone={toneFor(face.label)}
+                index={i}
+                isSelected={i === selectedIndex}
+                onSelect={setSelectedIndex}
+              />
+            ))}
+          </div>
         </div>
 
-        {faces.length === 0 && (
-          <p className="empty-note">
-            No face was detected in this image — try a clearer, front-facing photo.
-          </p>
-        )}
+        {/* RIGHT: authenticity signal + details */}
+        <div className="result-panel">
+          <div className="panel-card">
+            <p className="panel-label">Authenticity Signal</p>
 
-        {faces.map((face, i) => {
-          const tone = labelClass(face.label);
-          return (
-            <div key={i} className={`face-result-card face-result-${tone}`}>
-              <div className="face-result-top">
-                <span className="face-index">Face {i + 1}</span>
-                <span className={`face-verdict face-verdict-${tone}`}>{face.label}</span>
-              </div>
-              <ProbabilityMeter score={face.realProbability} tone={tone} />
-              <span className="face-score">{(face.realProbability * 100).toFixed(1)}% real</span>
+            <div className="verdict-row">
+              <span className={`verdict-badge verdict-${tone}`}>{verdictText(selected.label)}</span>
+              {faces.length > 1 && (
+                <span className="face-index-tag mono">FACE {String(selectedIndex + 1).padStart(2, "0")}</span>
+              )}
             </div>
-          );
-        })}
 
-        <div className="limitations">
-          <strong>AI estimate — not a certainty.</strong> This score reflects one
-          model's confidence, not a verified fact. Independent evaluation against
-          a labeled dataset found this model correctly identifies only ~40% of
-          actual manipulated faces, while rarely mislabeling real ones. Treat this
-          as one signal among several, not a final verdict.
-        </div>
+            <div className="meter-track">
+              <div
+                className={`meter-fill meter-fill-${tone}`}
+                style={{ width: `${selected.realProbability * 100}%` }}
+              />
+            </div>
+            <div className="meter-labels">
+              <span>Manipulated</span>
+              <span>Real</span>
+            </div>
 
-        <div className="how-section">
-          <button className="how-toggle" onClick={() => setHowOpen((o) => !o)}>
-            <span>How was this analyzed?</span>
-            <span className={`how-chevron ${howOpen ? "how-chevron-open" : ""}`}>⌄</span>
-          </button>
-          {howOpen && (
-            <div className="how-content">
-              <p>
-                <strong>1. Face detection</strong> — OpenCV's Haar Cascade
-                classifier scans the image for face-shaped patterns and returns
-                a bounding box for each one found.
-              </p>
-              <p>
-                <strong>2. Preprocessing</strong> — each detected face is cropped,
-                converted to RGB, resized to 256×256, and normalized to the
-                [0,1] pixel range the model expects.
-              </p>
-              <p>
-                <strong>3. MesoNet inference</strong> — a compact CNN
-                (Meso4, trained on FaceForensics++) scores the crop for
-                mesoscopic manipulation artifacts, producing a single
-                real/fake probability.
-              </p>
+            <div className="meter-numbers">
+              <div className="meter-number">
+                <div className="meter-number-value mono">
+                  {(selected.realProbability * 100).toFixed(1)}%
+                </div>
+                <div className="meter-number-label">Real probability</div>
+              </div>
+              <div className="meter-number">
+                <div className="meter-number-value mono">
+                  {(manipulatedProbability * 100).toFixed(1)}%
+                </div>
+                <div className="meter-number-label">Manipulation probability</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel-card">
+            <p className="panel-label">Summary</p>
+            <div className="tech-grid">
+              <div>
+                <div className="tech-item-label mono">Faces Detected</div>
+                <div className="tech-item-value">{result.facesDetected}</div>
+              </div>
+              <div>
+                <div className="tech-item-label mono">Model Used</div>
+                <div className="tech-item-value">MesoNet</div>
+              </div>
+              <div>
+                <div className="tech-item-label mono">Analysis Status</div>
+                <div className="tech-item-value">Complete</div>
+              </div>
+            </div>
+          </div>
+
+          {faces.length > 1 && (
+            <div className="panel-card">
+              <p className="panel-label">Detected Faces ({faces.length})</p>
+              <div className="face-list">
+                {faces.map((face, i) => {
+                  const t = toneFor(face.label);
+                  return (
+                    <div
+                      key={i}
+                      className={`face-list-item ${i === selectedIndex ? "face-list-item-selected" : ""}`}
+                      onClick={() => setSelectedIndex(i)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="face-list-left">
+                        <span className={`face-list-swatch ${t}`} />
+                        <span className="face-list-label">
+                          Face {String(i + 1).padStart(2, "0")}
+                        </span>
+                      </div>
+                      <span className="face-list-score mono">
+                        {(face.realProbability * 100).toFixed(0)}% real
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
+
+          <TechnicalDetailsPanel />
+          <AnalysisDetails />
+
+          <div className="panel-card">
+            <p className="limitations-note">
+              <strong>AI estimate — not a certainty.</strong> This score
+              reflects one model's confidence, not a verified fact.
+              Independent evaluation against a labeled dataset found this
+              model correctly identifies only ~40% of actual manipulated
+              faces, while rarely mislabeling real ones. Treat this as one
+              signal among several, not a final verdict.
+            </p>
+          </div>
         </div>
       </div>
     </div>

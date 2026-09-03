@@ -1,76 +1,110 @@
 import { useCallback, useRef, useState } from "react";
 
-export default function UploadZone({ onFileSelected }) {
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+export default function UploadZone({
+  selectedFile,
+  previewUrl,
+  onFileSelected,
+  onRemove,
+  onSubmit,
+}) {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Deliberately no client-side type filtering here: the backend is the
-  // single source of truth for "is this a valid image" (see main.py) and
-  // returns a clear error message when it isn't. Filtering here too would
-  // mean invalid files get silently dropped with zero feedback instead of
-  // reaching the real error path — worse than showing the actual error.
   const handleFiles = useCallback(
     (fileList) => {
       const file = fileList?.[0];
+      // Soft client-side hint only — the backend remains the real source of
+      // truth for validity (see main.py), so an unsupported type still
+      // reaches the real error path rather than being silently dropped.
       if (file) onFileSelected(file);
     },
     [onFileSelected]
   );
 
+  if (selectedFile && previewUrl) {
+    return (
+      <div className="upload-section">
+        <div className="upload-preview fade-in">
+          <div className="upload-preview-image-wrap">
+            <img src={previewUrl} alt="Selected upload preview" />
+          </div>
+          <div className="upload-preview-actions">
+            <span className="file-chip mono">{selectedFile.name}</span>
+            <div className="action-row">
+              <button className="btn btn-ghost btn-sm" onClick={onRemove}>
+                Remove
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={onSubmit}>
+                Analyze Image
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`dropzone corner-frame ${isDragging ? "dropzone-active" : ""}`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setIsDragging(true);
-      }}
-      onDragLeave={() => setIsDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setIsDragging(false);
-        handleFiles(e.dataTransfer.files);
-      }}
-      onClick={() => inputRef.current?.click()}
-      role="button"
-      tabIndex={0}
-    >
-      <span className="corner corner-tl" />
-      <span className="corner corner-tr" />
-      <span className="corner corner-bl" />
-      <span className="corner corner-br" />
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        id="file-input"
-        onChange={(e) => {
-          handleFiles(e.target.files);
-          e.target.value = "";
+    <div className="upload-section">
+      <div
+        className={`dropzone ${isDragging ? "dropzone-active" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
         }}
-      />
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          handleFiles(e.dataTransfer.files);
+        }}
+        onClick={() => inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPTED_TYPES.join(",")}
+          id="file-input"
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
 
-      <div className="dropzone-content">
         <div className="dropzone-icon" aria-hidden="true">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
             <path
               d="M12 16V4M12 4L7 9M12 4L17 9"
               stroke="currentColor"
-              strokeWidth="1.6"
+              strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             <path
               d="M4 16V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V16"
               stroke="currentColor"
-              strokeWidth="1.6"
+              strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
         </div>
         <p className="dropzone-title">Drop an image to analyze</p>
-        <p className="dropzone-subtitle">or click to browse — JPG, PNG</p>
+        <p className="dropzone-subtitle">or click to browse your files</p>
+        <span
+          className="browse-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
+        >
+          Browse files
+        </span>
+        <p className="format-note">JPG · PNG · WEBP</p>
       </div>
     </div>
   );
